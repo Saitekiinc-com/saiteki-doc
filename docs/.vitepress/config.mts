@@ -4,6 +4,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: "Saiteki AI Docs",
   description: "AI Adoption Guidelines & Roadmap",
+  base: "/saiteki-doc/",
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     nav: [
