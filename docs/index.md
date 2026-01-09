@@ -8,8 +8,8 @@ hero:
   tagline: "Engineering Roadmap & Company-wide AI Strategy"
   actions:
     - theme: brand
-      text: "エンジニア向けロードマップ"
-      link: "/エンジニア向けAI導入ロードマップ"
+      text: "Saiteki AI Standard"
+      link: "/saiteki_ai_standard"
     - theme: alt
       text: "全社員向け資料"
       link: "/全社員向け資料-AI導入の背景〜NextActionまで"
