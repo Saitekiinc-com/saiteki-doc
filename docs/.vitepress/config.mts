@@ -27,31 +27,38 @@ export default withMermaid({
         ]
       },
       {
-        text: '実践カリキュラム (Curriculum)',
+        text: 'ガイドライン',
         items: [
           {
             text: 'Lv.1 個人の作業効率化',
             items: [
-              { text: '企画視点の作業リスト', link: '/training/curriculum/level1_planning' },
-              { text: '開発視点の作業リスト', link: '/training/curriculum/level1_development' },
-              { text: 'QA視点の作業リスト', link: '/training/curriculum/level1_qa' },
+              { text: '企画視点の作業リスト', link: '/practices/lv1/planning' },
+              {
+                text: '開発視点の作業リスト',
+                collapsed: false,
+                items: [
+                  { text: '目次', link: '/practices/lv1/development/' },
+                  { text: '要件定義の構造化', link: '/practices/lv1/development/req_test' }
+                ]
+              },
+              { text: 'QA視点の作業リスト', link: '/practices/lv1/qa' },
             ]
           },
           {
             text: 'Lv.2 合意形成の加速',
             items: [
-              { text: 'HTMLモック早期生成', link: '/training/curriculum/level2_mock_driven_dev' },
-              { text: 'API・データモデルの先行生成', link: '/training/curriculum/level2_api_data' },
+              { text: 'HTMLモック早期生成', link: '/practices/lv2/mock_driven' },
+              { text: 'API・データモデルの先行生成', link: '/practices/lv2/api_data' },
             ]
           },
           {
             text: 'Lv.3 組織能力の拡張',
             items: [
-              { text: '独自モデルの構築', link: '/training/curriculum/level3_custom_model' },
-              { text: 'オンボーディング計画作成', link: '/training/curriculum/level3_onboarding' },
-              { text: '日報ナレッジ蓄積プロセス', link: '/training/curriculum/level3_knowledge_process' },
-              { text: '自律型ナレッジシェア', link: '/training/curriculum/level3_knowledge_share' },
-              { text: '読書サイクル', link: '/training/curriculum/level3_reading_cycle' },
+              { text: '独自モデルの構築', link: '/practices/lv3/custom_model' },
+              { text: 'オンボーディング計画作成', link: '/practices/lv3/onboarding' },
+              { text: '日報ナレッジ蓄積プロセス', link: '/practices/lv3/knowledge_process' },
+              { text: '自律型ナレッジシェア', link: '/practices/lv3/knowledge_share' },
+              { text: '読書サイクル', link: '/practices/lv3/reading_cycle' },
             ]
           }
         ]
