@@ -32,16 +32,7 @@ export default withMermaid({
           {
             text: 'Lv.1 個人の作業効率化',
             items: [
-              { text: '企画視点の作業リスト', link: '/practices/lv1/planning' },
-              {
-                text: '開発視点の作業リスト',
-                collapsed: false,
-                items: [
-                  { text: '目次', link: '/practices/lv1/development/' },
-                  { text: '要件定義の構造化', link: '/practices/lv1/development/req_test' }
-                ]
-              },
-              { text: 'QA視点の作業リスト', link: '/practices/lv1/qa' },
+              { text: '要件定義の構造化とテスト実装', link: '/practices/lv1/req_structure' },
             ]
           },
           {
