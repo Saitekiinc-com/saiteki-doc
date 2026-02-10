@@ -33,6 +33,7 @@ export default withMermaid({
             text: 'Lv.1 個人の作業効率化',
             items: [
               { text: '要件定義の構造化とテスト実装', link: '/practices/lv1/req_structure' },
+              { text: 'QAプロセスのAI活用', link: '/practices/lv1/qa_ai_process' },
             ]
           },
           {
@@ -47,6 +48,7 @@ export default withMermaid({
             items: [
               { text: '独自モデルの構築', link: '/practices/lv3/custom_model' },
               { text: 'オンボーディング計画作成', link: '/practices/lv3/onboarding' },
+              { text: '社員情報管理AIの活用', link: '/practices/lv3/employee_management' },
               { text: '日報ナレッジ蓄積プロセス', link: '/practices/lv3/knowledge_process' },
               { text: '自律型ナレッジシェア', link: '/practices/lv3/knowledge_share' },
               { text: '読書サイクル', link: '/practices/lv3/reading_cycle' },
