@@ -52,9 +52,7 @@ export default withMermaid({
               { text: 'オンボーディング計画作成', link: '/practices/lv3/onboarding' },
               { text: '社員情報管理AIの活用', link: '/practices/lv3/employee_management' },
               { text: '読書サイクル', link: '/practices/lv3/reading_cycle' },
-              { text: 'ナレッジ構築フロー', link: '/practices/lv3/knowledge_building' },
-              { text: 'タスクレビューフロー', link: '/practices/lv3/task_review' },
-              { text: 'フィードバックサイクル', link: '/practices/lv3/feedback_cycle' },
+              { text: 'AIタスクレビューシステム', link: '/practices/lv3/ai_task_review' },
             ]
           }
         ]
