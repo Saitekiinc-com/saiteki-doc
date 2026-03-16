@@ -51,9 +51,10 @@ export default withMermaid({
               { text: '独自モデルの構築', link: '/practices/lv3/custom_model' },
               { text: 'オンボーディング計画作成', link: '/practices/lv3/onboarding' },
               { text: '社員情報管理AIの活用', link: '/practices/lv3/employee_management' },
-              { text: '日報ナレッジ蓄積プロセス', link: '/practices/lv3/knowledge_process' },
-              { text: '自律型ナレッジシェア', link: '/practices/lv3/knowledge_share' },
               { text: '読書サイクル', link: '/practices/lv3/reading_cycle' },
+              { text: 'ナレッジ構築フロー', link: '/practices/lv3/knowledge_building' },
+              { text: 'タスクレビューフロー', link: '/practices/lv3/task_review' },
+              { text: 'フィードバックサイクル', link: '/practices/lv3/feedback_cycle' },
             ]
           }
         ]
