@@ -6,31 +6,53 @@
 
 ---
 
-## 仕組み
+## システムフロー
 
-```
-エンジニアが Notion にナレッジを書く
-（「この作業はAIに任せられる」という仮説）
-    ↓
-notion_to_neo4j.py でナレッジグラフ化（Neo4j）
-    ↓
-GitHub Issue が作成される
-    ↓
-Actions がissueのキーワードでグラフを検索
-    ↓
-Gemini がコメントを生成・issueに投稿
-「この作業はAIに任せられます / ここは人が判断を」
-    ↓
-実際のタスクを通じて仮説を検証
-    ↓
-Notionのナレッジを更新 → グラフを再生成
+```mermaid
+sequenceDiagram
+    actor Engineer as エンジニア
+    participant Notion
+    participant GHPages as GitHub Pages<br/>（Markdown）
+    participant Neo4j as Neo4j<br/>（ナレッジグラフ）
+    participant Issue as GitHub Issue
+    participant Actions as GitHub Actions
+    participant Gemini as Gemini API
+
+    %% ナレッジ構築フェーズ
+    rect rgb(230, 240, 255)
+        Note over Engineer,Neo4j: ナレッジ構築フェーズ
+        Engineer->>Notion: AI活用の仮説を記述<br/>（人の作業 / AIの作業）
+        Notion->>GHPages: Markdownとして公開
+        GHPages->>Neo4j: notion_to_neo4j.py で<br/>ナレッジグラフ化
+    end
+
+    %% タスクレビューフェーズ
+    rect rgb(230, 255, 235)
+        Note over Engineer,Gemini: タスクレビューフェーズ
+        Engineer->>Issue: issueを作成<br/>（タスクの概要を記述）
+        Issue->>Actions: issues.opened イベントで起動
+        Actions->>Neo4j: issueのキーワードで<br/>HumanTask / AIGuidanceを検索
+        Neo4j-->>Actions: 関連ナレッジを返す
+        Actions->>Gemini: ナレッジ + issueを渡して<br/>コメント文を生成
+        Gemini-->>Actions: AI活用ガイダンスを返す
+        Actions->>Issue: コメントを自動投稿<br/>（AIに任せられる作業・人が判断する作業）
+        Engineer->>Issue: コメントを確認してタスクを進める
+    end
+
+    %% フィードバックフェーズ
+    rect rgb(255, 245, 220)
+        Note over Engineer,Neo4j: フィードバックフェーズ
+        Engineer->>Notion: 実際のタスクを通じた気づきを追記<br/>（仮説の検証・修正）
+        Notion->>GHPages: Markdownを更新
+        GHPages->>Neo4j: ナレッジグラフを再生成<br/>（確度・フローが磨かれる）
+    end
 ```
 
 ---
 
 ## 現在のナレッジベース
 
-| フェーズ | Notionページ |
+| フェーズ | ナレッジページ |
 |---|---|
 | テスト | テスト観点抽出・テスト設計書作成・テスト戦略 |
 | 追加予定 | 要件定義・設計・実装 |
@@ -46,8 +68,8 @@ Notionのナレッジを更新 → グラフを再生成
 ### ナレッジを追加・更新する
 
 1. Notionにページを追加・編集する
-2. `scripts/notion_to_neo4j.py` の `PAGE_IDS` に追加するページIDを記載する
-3. スクリプトを実行する
+2. GitHub Pagesに公開されたMarkdownを確認する
+3. `scripts/notion_to_neo4j.py` の `PAGE_IDS` に追加するページIDを記載してスクリプトを実行する
 
 ```bash
 export NOTION_TOKEN="your-notion-token"
