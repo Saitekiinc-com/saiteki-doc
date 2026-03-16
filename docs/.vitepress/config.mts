@@ -35,6 +35,7 @@ export default withMermaid({
               { text: 'テスト観点抽出（汎用）', link: '/practices/lv1/test_viewpoint_extraction' },
               { text: 'テスト戦略の策定', link: '/practices/lv1/test_strategy' },
               { text: 'テスト設計書作成', link: '/practices/lv1/test_design_document' },
+              { text: '実行用テストケース実装', link: '/practices/lv1/test_case_implementation' },
             ]
           },
           {
