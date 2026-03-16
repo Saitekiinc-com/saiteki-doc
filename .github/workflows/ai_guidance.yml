@@ -1,0 +1,36 @@
+name: AI活用ガイダンス自動コメント
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  generate-guidance:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Python環境をセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 依存パッケージをインストール
+        run: pip install requests google-generativeai
+
+      - name: AI活用ガイダンスを生成してコメント
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NEO4J_URI: https://2ada646d.databases.neo4j.io/db/2ada646d/query/v2
+          NEO4J_USER: 2ada646d
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          REPO: ${{ github.repository }}
+        run: python scripts/generate_ai_guidance.py
