@@ -35,6 +35,8 @@ export default withMermaid({
               { text: '要件定義の構造化とテスト実装', link: '/practices/lv1/req_structure' },
               { text: 'QAプロセスのAI活用', link: '/practices/lv1/qa_ai_process' },
               { text: 'テスト観点抽出（汎用）', link: '/practices/lv1/test_viewpoint_extraction' },
+              { text: 'テスト戦略の策定', link: '/practices/lv1/test_strategy' },
+              { text: 'テスト設計書作成', link: '/practices/lv1/test_design_document' },
             ]
           },
           {
