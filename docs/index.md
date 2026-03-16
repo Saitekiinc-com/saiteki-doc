@@ -3,7 +3,7 @@ layout: page
 head:
   - - meta
     - http-equiv: refresh
-      content: "0; url=/saiteki-doc/practices/lv1/test_viewpoint_extraction.html"
+      content: "0; url=/saiteki-doc/saiteki_ai_standard.html"
 ---
 
 <script setup>
@@ -11,6 +11,6 @@ import { onMounted } from 'vue'
 import { useRouter } from 'vitepress'
 const router = useRouter()
 onMounted(() => {
-  router.go('/practices/lv1/test_viewpoint_extraction')
+  router.go('/saiteki_ai_standard')
 })
 </script>
