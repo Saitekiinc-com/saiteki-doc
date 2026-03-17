@@ -32,20 +32,6 @@ HUMAN_TASK_HEADINGS = ["人がやること", "人の作業", "ユーザー", "Hu
 AI_TASK_HEADINGS    = ["AIの作業", "AIにやってほしいこと", "生成AI", "AI"]
 OUTPUT_HEADINGS     = ["中間成果物", "AI成果物", "成果物", "Output"]
 
-# issueキーワードのマッピング（セクション名 → キーワードリスト）
-KEYWORD_MAP = {
-    "テスト観点":          ["テスト観点", "観点", "観点抽出", "観点展開"],
-    "テスト戦略":          ["テスト戦略", "テスト計画", "品質戦略", "品質方針"],
-    "テスト設計":          ["テスト設計", "テスト設計書", "テストケース", "テスト"],
-    "要件定義":            ["要件定義", "要件", "要求", "仕様"],
-    "リスク":              ["リスク", "品質リスク", "リスク分析", "バグ"],
-    "優先度":              ["優先度", "優先順位", "重要度"],
-    "API":                 ["API", "外部連携", "外部API"],
-    "レビュー":            ["レビュー", "review", "確認", "網羅性"],
-    "リファクタリング":    ["リファクタリング", "改修", "改善"],
-    "機能追加":            ["機能追加", "新機能", "実装"],
-    "パフォーマンス":      ["パフォーマンス", "性能", "負荷"],
-}
 
 
 # =============================================
@@ -139,18 +125,6 @@ def parse_markdown_file(filepath: str) -> dict:
         "lv":       lv,
         "sections": sections,
     }
-
-
-def find_keywords_for_section(section_name: str) -> list[str]:
-    """セクション名からissueマッチング用キーワードを返す"""
-    keywords = []
-    for key, kw_list in KEYWORD_MAP.items():
-        if key in section_name:
-            keywords.extend(kw_list)
-    if not keywords:
-        # キーワードマップに該当がなければセクション名自体をキーワードに
-        keywords = [section_name]
-    return list(dict.fromkeys(keywords))
 
 
 def judge_replaceability(human_tasks: list, ai_tasks: list) -> tuple[str, str]:
@@ -277,7 +251,6 @@ def main():
     print("\n[Step 5] ナレッジを投入")
     ht_count = 0
     ag_count = 0
-    kw_count = 0
 
     for page in all_pages:
         # MarkdownPageノード
@@ -364,20 +337,7 @@ def main():
                     {"ag": ag_id, "role": role_id},
                 )
 
-            keywords = find_keywords_for_section(section_name)
-            for kw in keywords:
-                kw_id = f"kw_{re.sub(r'[^a-zA-Zぁ-んァ-ヶ一-龠]', '_', kw)}"
-                neo4j_run(
-                    "MERGE (k:DomainKeyword {id: $id}) ON CREATE SET k.word = $word",
-                    {"id": kw_id, "word": kw},
-                )
-                neo4j_run(
-                    "MATCH (h:HumanTask {id: $ht}), (k:DomainKeyword {id: $kid}) MERGE (h)-[:TRIGGERED_BY]->(k)",
-                    {"ht": ht_id, "kid": kw_id},
-                )
-                kw_count += 1
-
-            print(f"    [{replaceable}] {section_name} / 人:{len(human_tasks)} AI:{len(ai_tasks)} KW:{len(keywords)}")
+            print(f"    [{replaceable}] {section_name} / 人:{len(human_tasks)} AI:{len(ai_tasks)}")
 
     # Step 6: 結果確認
     print("\n[Step 6] 投入結果")

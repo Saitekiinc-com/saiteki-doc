@@ -1,64 +1,52 @@
 #!/usr/bin/env python3
 """
 GitHub issueが作成されたときに:
-1. issueタイトル・本文のキーワードからNeo4jでHumanTaskを検索
-2. 関連するAIGuidanceを取得
+1. Neo4jからナレッジグラフ全体を取得（Graph RAG）
+2. issueとグラフコンテキストをGeminiに渡して意味的にマッチング
 3. Gemini APIでコメント文を生成
 4. GitHub issueにコメントを投稿する
 """
 
 import os
-import re
 import requests
 import google.generativeai as genai
 
 # =============================================
 # 環境変数から設定を読み込む
 # =============================================
-GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
-NEO4J_URI     = os.environ["NEO4J_URI"]
-NEO4J_USER    = os.environ["NEO4J_USER"]
-NEO4J_PASSWORD = os.environ["NEO4J_PASSWORD"]
-GITHUB_TOKEN  = os.environ["GITHUB_TOKEN"]
-ISSUE_NUMBER  = os.environ["ISSUE_NUMBER"]
-ISSUE_TITLE   = os.environ.get("ISSUE_TITLE", "")
-ISSUE_BODY    = os.environ.get("ISSUE_BODY", "")
-REPO          = os.environ["REPO"]  # 例: Saitekiinc-com/saiteki-doc
+GEMINI_API_KEY  = os.environ["GEMINI_API_KEY"]
+NEO4J_URI       = os.environ["NEO4J_URI"]
+NEO4J_USER      = os.environ["NEO4J_USER"]
+NEO4J_PASSWORD  = os.environ["NEO4J_PASSWORD"]
+GITHUB_TOKEN    = os.environ["GITHUB_TOKEN"]
+ISSUE_NUMBER    = os.environ["ISSUE_NUMBER"]
+ISSUE_TITLE     = os.environ.get("ISSUE_TITLE", "")
+ISSUE_BODY      = os.environ.get("ISSUE_BODY", "")
+REPO            = os.environ["REPO"]  # 例: Saitekiinc-com/saiteki-doc
 
 
 # =============================================
-# Neo4j: キーワードでHumanTaskとAIGuidanceを検索
+# Neo4j: ナレッジグラフ全体を取得（Graph RAG）
 # =============================================
 
-def search_knowledge_graph(keywords: list[str]) -> list[dict]:
+def fetch_knowledge_graph() -> str:
     """
-    キーワードリストからNeo4jで関連するHumanTaskとAIGuidanceを取得する
+    Neo4jからMarkdownPage → HumanTask → AIGuidance → AIRole
+    のパスを全件取得し、Geminiに渡すコンテキストテキストを生成する。
     """
-    if not keywords:
-        return []
-
-    # キーワードのOR条件でDomainKeywordを検索
-    keyword_conditions = " OR ".join([
-        f"toLower(k.word) CONTAINS toLower('{kw}')" for kw in keywords
-    ])
-
-    query = f"""
-    MATCH (k:DomainKeyword)<-[:TRIGGERED_BY]-(h:HumanTask)
-    WHERE {keyword_conditions}
+    query = """
+    MATCH (p:MarkdownPage)-[:DEFINES]->(h:HumanTask)
     OPTIONAL MATCH (h)-[:REPLACEABLE_BY|PARTIALLY_BY]->(g:AIGuidance)-[:USES_ROLE]->(r:AIRole)
     RETURN
-        h.name           AS task_name,
-        h.replaceable    AS level,
-        h.replace_note   AS note,
-        h.source_page    AS source,
-        g.title          AS guidance_title,
-        g.ai_tasks       AS ai_tasks,
-        g.prompt_template AS prompt_template,
-        g.output_example  AS output_example,
-        r.name           AS ai_role
-    ORDER BY
-        CASE h.replaceable WHEN 'full' THEN 1 WHEN 'partial' THEN 2 ELSE 3 END
-    LIMIT 8
+        p.title         AS page_title,
+        p.lv            AS lv,
+        h.name          AS task_name,
+        h.replaceable   AS replaceable,
+        h.replace_note  AS replace_note,
+        g.ai_tasks      AS ai_tasks,
+        g.output_example AS output_example,
+        r.name          AS ai_role
+    ORDER BY p.lv, p.title
     """
 
     resp = requests.post(
@@ -70,84 +58,65 @@ def search_knowledge_graph(keywords: list[str]) -> list[dict]:
 
     if resp.status_code not in (200, 201):
         print(f"Neo4j ERROR: {resp.status_code} {resp.text[:200]}")
-        return []
+        return ""
 
-    data = resp.json()
-    results = []
-    seen = set()
+    data  = resp.json()
+    rows  = data.get("data", {}).get("values", [])
+    if not rows:
+        return ""
 
-    for row in data.get("data", {}).get("values", []):
-        task_name = row[0]
-        if task_name in seen:
-            continue
-        seen.add(task_name)
-        results.append({
-            "task_name":      task_name,
-            "level":          row[1],
-            "note":           row[2],
-            "source":         row[3],
-            "guidance_title": row[4],
-            "ai_tasks":       row[5] if isinstance(row[5], list) else [],
-            "prompt_template":row[6],
-            "output_example": row[7],
-            "ai_role":        row[8],
-        })
+    # テキスト構造化
+    context_lines = ["## 社内ナレッジグラフ（Saitekiの作業とAI活用情報）\n"]
+    current_page  = None
 
-    return results
+    for row in rows:
+        page_title, lv, task_name, replaceable, replace_note, ai_tasks, output_example, ai_role = row
 
+        if page_title != current_page:
+            current_page = page_title
+            context_lines.append(f"\n### [Lv{lv}] {page_title}")
 
-# =============================================
-# キーワード抽出
-# =============================================
+        level_label = {
+            "full":       "✅ AIが全量担当できる",
+            "partial":    "⚡ AIが補助・人が最終判断",
+            "human_only": "👤 人が必須",
+        }.get(replaceable, replaceable or "不明")
 
-def extract_keywords(title: str, body: str) -> list[str]:
-    """
-    issueタイトルと本文から検索キーワードを抽出する
-    """
-    text = f"{title} {body}"
+        context_lines.append(f"\n#### 作業: {task_name} [{level_label}]")
+        if replace_note:
+            context_lines.append(f"- 判定理由: {replace_note}")
+        if ai_role:
+            context_lines.append(f"- AIの役割: {ai_role}")
+        if ai_tasks:
+            tasks = ai_tasks if isinstance(ai_tasks, list) else [ai_tasks]
+            context_lines.append("- AIがやること:")
+            for t in tasks[:4]:
+                context_lines.append(f"  - {t}")
+        if output_example:
+            context_lines.append(f"- 期待する成果物: {output_example}")
 
-    # テスト・品質関連キーワード
-    pattern_keywords = [
-        "テスト", "テスト戦略", "テスト設計", "テスト観点", "テストケース",
-        "品質", "リスク", "観点", "カバレッジ", "レビュー",
-        "仕様", "要件", "要求", "バグ", "不具合", "障害",
-        "リファクタリング", "改修", "API", "パフォーマンス", "性能",
-        "機能追加", "新機能", "設計", "実装",
-    ]
-
-    found = []
-    for kw in pattern_keywords:
-        if kw in text:
-            found.append(kw)
-
-    # タイトルの単語もキーワードとして追加（3文字以上の日本語・英数字）
-    title_words = re.findall(r"[ぁ-んァ-ヶ一-龠A-Za-z0-9]{3,}", title)
-    found.extend(title_words)
-
-    return list(dict.fromkeys(found))  # 重複排除・順序維持
+    return "\n".join(context_lines)
 
 
 # =============================================
-# Gemini: コメント文章を生成
+# Gemini: Graph RAGでコメント文章を生成
 # =============================================
 
 def generate_comment(
     issue_title: str,
-    issue_body: str,
-    knowledge: list[dict],
+    issue_body:  str,
+    graph_context: str,
 ) -> str:
     """
-    Gemini APIでissueコメントを生成する
+    Gemini APIにナレッジグラフ全体とissueを渡してコメントを生成する。
     """
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel("gemini-2.0-flash")
 
-    if not knowledge:
-        # 関連ナレッジが見つからなかった場合
+    if not graph_context:
         prompt = f"""
-あなたはソフトウェア開発チームのAI活用アドバイザーです。
-以下のissueについて、AIを活用できる可能性があればアドバイスしてください。
-関連するナレッジが見つからなかった場合でも、一般的なAI活用の観点でコメントしてください。
+あなたはSaitekiのAI活用アドバイザーです。
+以下のGitHub issueについて、AIを活用できる可能性があればアドバイスしてください。
 
 issueタイトル: {issue_title}
 issue本文: {issue_body[:500]}
@@ -155,44 +124,34 @@ issue本文: {issue_body[:500]}
 日本語で、Markdownで、200字程度で簡潔にコメントしてください。
 """
     else:
-        # 知識グラフから関連情報が取得できた場合
-        knowledge_text = ""
-        for item in knowledge:
-            level_label = {
-                "full": "✅ AIが全量担当できる",
-                "partial": "⚡ AIが補助・人が最終判断",
-                "human_only": "👤 人が必須",
-            }.get(item["level"], item["level"])
-
-            knowledge_text += f"\n### {item['task_name']} [{level_label}]\n"
-            knowledge_text += f"- 元ページ: {item['source']}\n"
-            knowledge_text += f"- 判定理由: {item['note']}\n"
-
-            if item["ai_tasks"]:
-                ai_task_str = "\n  ".join(item["ai_tasks"][:4])
-                knowledge_text += f"- AIがやること:\n  {ai_task_str}\n"
-
-            if item["guidance_title"] and item["prompt_template"]:
-                knowledge_text += f"- 推奨プロンプト: 「{item['guidance_title']}」テンプレートを使用\n"
-
         prompt = f"""
-あなたはソフトウェア開発チームのAI活用アドバイザーです。
-以下のGitHub issueに対して、AIを活用できる作業を社内ナレッジグラフから検索した結果をもとにコメントしてください。
+あなたはSaitekiのAI活用アドバイザーです。
+以下の「社内ナレッジグラフ」には、Saitekiが蓄積してきたAI活用のワークフロー情報が含まれています。
+このグラフを参照して、GitHub issueで取り組もうとしているタスクに対して、
+AIを活用できる作業と具体的なアドバイスを提供してください。
 
-## issueの概要
+{graph_context}
+
+---
+
+## 対象のGitHub issue
+
 タイトル: {issue_title}
-本文: {issue_body[:500] if issue_body else "（本文なし）"}
+本文:
+{issue_body[:800] if issue_body else "（本文なし）"}
 
-## 社内ナレッジグラフから取得した関連情報
-{knowledge_text}
+---
 
 ## コメント作成の指示
-- 日本語で、Markdownフォーマットでコメントを作成してください
-- 「このissueでAIに任せられる作業」を箇条書きで明示してください
-- 「人が判断・決定する必要がある作業」も明示してください
-- 実際に使えるAIへの指示例（プロンプトの雛形）を1つ含めてください
-- ポジティブで実用的なトーンで書いてください
-- 全体で400字以内にまとめてください
+
+上記のナレッジグラフの中から、このissueに最も関連するページ・作業を特定して:
+
+1. **このissueでAIに任せられる作業**を箇条書きで明示してください
+2. **人が判断・決定する必要がある作業**も明示してください
+3. **実際に使えるAIへの指示例**（プロンプトの雛形）を1つ含めてください
+4. 関連するSaitekiガイドラインページ名を参照として記載してください
+
+日本語のMarkdownで、全体400字以内で実用的に書いてください。
 """
 
     response = model.generate_content(prompt)
@@ -230,27 +189,24 @@ def post_github_comment(repo: str, issue_number: str, body: str):
 def main():
     print(f"issue #{ISSUE_NUMBER}: {ISSUE_TITLE}")
 
-    # 1. キーワード抽出
-    keywords = extract_keywords(ISSUE_TITLE, ISSUE_BODY)
-    print(f"キーワード: {keywords}")
+    # 1. Neo4jからナレッジグラフ全体を取得
+    print("ナレッジグラフを取得中...")
+    graph_context = fetch_knowledge_graph()
+    node_count = graph_context.count("####")
+    print(f"取得完了: {node_count}件のタスクノード")
 
-    # 2. ナレッジグラフを検索
-    knowledge = search_knowledge_graph(keywords)
-    print(f"関連ナレッジ: {len(knowledge)}件")
-    for k in knowledge:
-        print(f"  [{k['level']}] {k['task_name']}")
-
-    # 3. コメント本文を生成
-    header = "## 🤖 AI活用ガイダンス\n\n"
+    # 2. Graph RAGでコメント本文を生成
+    print("Geminiでコメント生成中...")
+    header = "## 🤖 AI活用ガイダンス（Graph RAG）\n\n"
     header += "_このコメントはissue作成時に社内ナレッジグラフを参照して自動生成されました。_\n\n"
 
-    body_text = generate_comment(ISSUE_TITLE, ISSUE_BODY, knowledge)
+    body_text    = generate_comment(ISSUE_TITLE, ISSUE_BODY, graph_context)
     full_comment = header + body_text
 
     print("\n=== 生成されたコメント ===")
     print(full_comment)
 
-    # 4. GitHubにコメントを投稿
+    # 3. GitHubにコメントを投稿
     post_github_comment(REPO, ISSUE_NUMBER, full_comment)
 
 
