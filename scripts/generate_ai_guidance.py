@@ -2,12 +2,14 @@
 """
 GitHub issueが作成されたときに:
 1. Neo4jからナレッジグラフ全体を取得（Graph RAG）
-2. issueとグラフコンテキストをGeminiに渡して意味的にマッチング
-3. 関連するSaitekiドキュメントへのリンク・プロンプト例を含むコメントを生成
+2. Geminiにissueと関連ページ名のリストを渡し、どれが関連するか特定させる（JSON形式）
+3. 特定されたページのリンク・AI活用内容・プロンプト例をコードで組み立てる
 4. GitHub issueにコメントを投稿する
 """
 
+import json
 import os
+import re
 import requests
 import google.generativeai as genai
 
@@ -22,33 +24,25 @@ GITHUB_TOKEN    = os.environ["GITHUB_TOKEN"]
 ISSUE_NUMBER    = os.environ["ISSUE_NUMBER"]
 ISSUE_TITLE     = os.environ.get("ISSUE_TITLE", "")
 ISSUE_BODY      = os.environ.get("ISSUE_BODY", "")
-REPO            = os.environ["REPO"]  # 例: Saitekiinc-com/saiteki-doc
+REPO            = os.environ["REPO"]
 
 DOCS_BASE_URL   = "https://saitekiinc-com.github.io/saiteki-doc"
 
 
 def filepath_to_url(filepath: str) -> str:
-    """
-    Neo4jのfilepathをGitHub PagesのURLに変換する
-    例: practices/lv1/estimation.md → https://...saiteki-doc/practices/lv1/estimation.html
-    """
+    """例: practices/lv1/estimation.md → https://...saiteki-doc/practices/lv1/estimation.html"""
     path = filepath.replace("\\", "/")
-    # "practices/..." 以降だけ使う
     if "practices/" in path:
         path = path[path.index("practices/"):]
-    html_path = path.replace(".md", ".html")
-    return f"{DOCS_BASE_URL}/{html_path}"
+    return f"{DOCS_BASE_URL}/{path.replace('.md', '.html')}"
 
 
 # =============================================
-# Neo4j: ナレッジグラフ全体を取得（Graph RAG）
+# Neo4j: ナレッジグラフ全体を取得
 # =============================================
 
-def fetch_knowledge_graph() -> tuple[str, list[dict]]:
-    """
-    Neo4jからMarkdownPage → HumanTask → AIGuidance → AIRole
-    のパスを全件取得し、Geminiに渡すコンテキストと生データを返す。
-    """
+def fetch_knowledge_graph() -> list[dict]:
+    """Neo4jから全ページのナレッジを取得して辞書リストとして返す"""
     query = """
     MATCH (p:MarkdownPage)-[:DEFINES]->(h:HumanTask)
     OPTIONAL MATCH (h)-[:REPLACEABLE_BY|PARTIALLY_BY]->(g:AIGuidance)-[:USES_ROLE]->(r:AIRole)
@@ -56,139 +50,139 @@ def fetch_knowledge_graph() -> tuple[str, list[dict]]:
         p.title          AS page_title,
         p.lv             AS lv,
         p.filepath       AS filepath,
-        h.name           AS task_name,
         h.replaceable    AS replaceable,
-        h.replace_note   AS replace_note,
         g.ai_tasks       AS ai_tasks,
         g.prompt_template AS prompt_template,
         g.output_example AS output_example,
         r.name           AS ai_role
     ORDER BY p.lv, p.title
     """
-
     resp = requests.post(
         NEO4J_URI,
         headers={"Content-Type": "application/json"},
         json={"statement": query},
         auth=(NEO4J_USER, NEO4J_PASSWORD),
     )
-
     if resp.status_code not in (200, 201):
-        print(f"Neo4j ERROR: {resp.status_code} {resp.text[:200]}")
-        return "", []
+        print(f"Neo4j ERROR: {resp.status_code}")
+        return []
 
-    data  = resp.json()
-    rows  = data.get("data", {}).get("values", [])
-    if not rows:
-        return "", []
-
-    raw_pages = []
-    context_lines = ["## 社内ナレッジグラフ（Saitekiの作業とAI活用情報）\n"]
-    current_page  = None
-
-    for row in rows:
-        page_title, lv, filepath, task_name, replaceable, replace_note, ai_tasks, prompt_template, output_example, ai_role = row
-
-        doc_url = filepath_to_url(filepath) if filepath else ""
-
-        if page_title != current_page:
-            current_page = page_title
-            context_lines.append(f"\n### [Lv{lv}] {page_title}")
-            if doc_url:
-                context_lines.append(f"ドキュメントURL: {doc_url}")
-
-        level_label = {
-            "full":       "✅ AIが全量担当できる",
-            "partial":    "⚡ AIが補助・人が最終判断",
-            "human_only": "👤 人が必須",
-        }.get(replaceable, replaceable or "不明")
-
-        context_lines.append(f"\n#### 作業: {task_name} [{level_label}]")
-        if replace_note:
-            context_lines.append(f"- 判定理由: {replace_note}")
-        if ai_role:
-            context_lines.append(f"- AIの役割: {ai_role}")
-        if ai_tasks:
-            tasks = ai_tasks if isinstance(ai_tasks, list) else [ai_tasks]
-            context_lines.append("- AIがやること:")
-            for t in tasks[:4]:
-                context_lines.append(f"  - {t}")
-        if output_example:
-            context_lines.append(f"- 期待する成果物: {output_example}")
-
-        raw_pages.append({
+    pages = []
+    seen  = set()
+    for row in resp.json().get("data", {}).get("values", []):
+        page_title, lv, filepath, replaceable, ai_tasks, prompt_template, output_example, ai_role = row
+        if page_title in seen:
+            continue
+        seen.add(page_title)
+        pages.append({
             "page_title":      page_title,
             "lv":              lv,
-            "doc_url":         doc_url,
-            "task_name":       task_name,
-            "replaceable":     replaceable,
+            "doc_url":         filepath_to_url(filepath) if filepath else "",
+            "replaceable":     replaceable or "",
             "ai_tasks":        ai_tasks if isinstance(ai_tasks, list) else [],
             "prompt_template": prompt_template or "",
             "output_example":  output_example or "",
             "ai_role":         ai_role or "",
         })
-
-    return "\n".join(context_lines), raw_pages
+    return pages
 
 
 # =============================================
-# Gemini: Graph RAGでコメント文章を生成
+# Gemini: 関連ページを特定（JSON形式で）
 # =============================================
 
-def generate_comment(
-    issue_title:   str,
-    issue_body:    str,
-    graph_context: str,
-) -> str:
+def identify_relevant_pages(
+    issue_title: str,
+    issue_body:  str,
+    pages:       list[dict],
+) -> list[str]:
     """
-    Gemini APIにナレッジグラフ全体とissueを渡してコメントを生成する。
+    issueの内容からどのページが関連するかをGeminiに特定させる。
+    返り値: 関連するpage_titleのリスト（最大3件）
     """
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel("gemini-2.0-flash")
 
-    if not graph_context:
-        prompt = f"""
-あなたはSaitekiのAI活用アドバイザーです。
-以下のGitHub issueについて、AIを活用できる可能性があればアドバイスしてください。
+    page_list = "\n".join([f"- {p['page_title']} (Lv{p['lv']})" for p in pages])
 
-issueタイトル: {issue_title}
-issue本文: {issue_body[:500]}
+    prompt = f"""
+以下のGitHub issueの内容を読んで、このissueのタスクに最も関連する社内ナレッジを選んでください。
 
-日本語で、Markdownで、200字程度で簡潔にコメントしてください。
-"""
-    else:
-        prompt = f"""
-あなたはSaitekiのAI活用アドバイザーです。
-以下の「社内ナレッジグラフ」には、Saitekiが蓄積してきたAI活用のワークフロー情報が含まれています。
-
-{graph_context}
-
----
-
-## 対象のGitHub issue
-
+## GitHub issue
 タイトル: {issue_title}
-本文:
-{issue_body[:800] if issue_body else "（本文なし）"}
+本文: {issue_body[:600] if issue_body else "（なし）"}
 
----
+## 社内ナレッジ一覧（ページ名）
+{page_list}
 
-## コメント作成の指示
+## 指示
+上記の一覧から、このissueのタスクに関連するページを最大3件選び、
+以下のJSON配列形式のみで返してください。他のテキストは不要です。
 
-社内ナレッジグラフの中から、このissueに最も関連するページを特定して、以下の形式でコメントを作成してください。
-
-**必ず守ること:**
-1. 関連するガイドラインページを **最大3件** 選び、各ページについて以下を記述する
-   - ページタイトルをMarkdownリンク形式で示す（ドキュメントURLを使う）
-   - そのページで「AIに任せられる具体的な作業」を1〜2行で説明する
-   - すぐ使えるプロンプト例を1文で示す（「AIへの指示例:」）
-2. 最後に「人が判断・決定する必要がある作業」を箇条書きで1〜3件まとめる
-3. 日本語のMarkdownで、全体500字以内にまとめる
-4. ポジティブで実用的なトーンで書く
+例: ["工数見積もりの精緻化", "API仕様の先行確定"]
 """
-
     response = model.generate_content(prompt)
-    return response.text
+    text = response.text.strip()
+
+    # JSON配列を抽出
+    match = re.search(r'\[.*?\]', text, re.DOTALL)
+    if not match:
+        return []
+    try:
+        titles = json.loads(match.group())
+        return [t for t in titles if isinstance(t, str)][:3]
+    except json.JSONDecodeError:
+        return []
+
+
+# =============================================
+# コメント本文をコードで組み立て
+# =============================================
+
+def build_comment(
+    issue_title:     str,
+    relevant_titles: list[str],
+    pages:           list[dict],
+) -> str:
+    """
+    特定されたページのリンク・AIタスク・プロンプト例を使ってコメントを組み立てる
+    """
+    page_map = {p["page_title"]: p for p in pages}
+    level_label = {
+        "full":       "✅ AIが全量担当",
+        "partial":    "⚡ AIが補助・人が最終判断",
+        "human_only": "👤 人が必須",
+    }
+
+    if not relevant_titles:
+        return "ナレッジグラフに関連するガイドラインが見つかりませんでした。\n新しいナレッジを追加していきましょう！"
+
+    lines = []
+    for title in relevant_titles:
+        page = page_map.get(title)
+        if not page:
+            continue
+
+        label = level_label.get(page["replaceable"], "")
+        lines.append(f"### [{title}]({page['doc_url']}) {label}")
+
+        if page["ai_tasks"]:
+            lines.append("\n**AIにやってもらえること:**")
+            for t in page["ai_tasks"][:3]:
+                lines.append(f"- {t}")
+
+        if page["output_example"]:
+            lines.append(f"\n**期待する成果物:** {page['output_example']}")
+
+        if page["prompt_template"]:
+            # プロンプトテンプレートの先頭1〜2行を抜粋
+            snippet = page["prompt_template"].split("\n")[0][:120]
+            lines.append(f"\n**AIへの指示例:**")
+            lines.append(f"> {snippet}")
+
+        lines.append("")  # 空行
+
+    return "\n".join(lines)
 
 
 # =============================================
@@ -196,13 +190,16 @@ issue本文: {issue_body[:500]}
 # =============================================
 
 def post_github_comment(repo: str, issue_number: str, body: str):
-    url = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-    resp = requests.post(url, headers=headers, json={"body": body})
+    url  = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
+    resp = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+        json={"body": body},
+    )
     if resp.status_code == 201:
         print(f"コメントを投稿しました: {resp.json()['html_url']}")
     else:
@@ -217,23 +214,27 @@ def post_github_comment(repo: str, issue_number: str, body: str):
 def main():
     print(f"issue #{ISSUE_NUMBER}: {ISSUE_TITLE}")
 
-    # 1. Neo4jからナレッジグラフ全体を取得
+    # 1. Neo4jからナレッジグラフを取得
     print("ナレッジグラフを取得中...")
-    graph_context, raw_pages = fetch_knowledge_graph()
-    print(f"取得完了: {len(raw_pages)}件のタスクノード")
+    pages = fetch_knowledge_graph()
+    print(f"取得完了: {len(pages)}ページ")
 
-    # 2. Graph RAGでコメント本文を生成
-    print("Geminiでコメント生成中...")
+    # 2. Geminiで関連ページを特定
+    print("Geminiで関連ページを特定中...")
+    relevant_titles = identify_relevant_pages(ISSUE_TITLE, ISSUE_BODY, pages)
+    print(f"関連ページ: {relevant_titles}")
+
+    # 3. コメント本文をコードで組み立て
     header  = "## 🤖 AI活用ガイダンス\n\n"
     header += "_issueの内容をもとに、社内ナレッジグラフから関連するガイドラインを自動で提案しています。_\n\n"
 
-    body_text    = generate_comment(ISSUE_TITLE, ISSUE_BODY, graph_context)
+    body_text    = build_comment(ISSUE_TITLE, relevant_titles, pages)
     full_comment = header + body_text
 
     print("\n=== 生成されたコメント ===")
     print(full_comment)
 
-    # 3. GitHubにコメントを投稿
+    # 4. GitHubにコメントを投稿
     post_github_comment(REPO, ISSUE_NUMBER, full_comment)
 
 
