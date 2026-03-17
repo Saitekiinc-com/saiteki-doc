@@ -64,7 +64,7 @@ def fetch_knowledge_graph() -> list[dict]:
         json={"statement": query},
         auth=(NEO4J_USER, NEO4J_PASSWORD),
     )
-    if resp.status_code not in (200, 201):
+    if resp.status_code not in (200, 201, 202):
         print(f"Neo4j ERROR: {resp.status_code}")
         return []
 
