@@ -41,6 +41,7 @@ export default withMermaid({
               { text: 'フロントエンド実装の加速', link: '/practices/lv1/frontend_impl' },
               { text: 'サーバーサイド実装の加速', link: '/practices/lv1/backend_impl' },
               { text: 'ユニットテストの自動生成', link: '/practices/lv1/unit_test' },
+              { text: '結合テストの効率化', link: '/practices/lv1/integration_test' },
             ]
           },
           {
