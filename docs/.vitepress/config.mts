@@ -37,6 +37,7 @@ export default withMermaid({
               { text: 'テスト設計書作成', link: '/practices/lv1/test_design_document' },
               { text: '実行用テストケース実装', link: '/practices/lv1/test_case_implementation' },
               { text: '工数見積もりの精緻化', link: '/practices/lv1/estimation' },
+              { text: 'API仕様の先行確定', link: '/practices/lv1/api_spec' },
             ]
           },
           {
