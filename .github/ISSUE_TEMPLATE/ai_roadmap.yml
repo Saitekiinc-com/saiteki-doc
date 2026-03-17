@@ -1,5 +1,5 @@
 name: AI活用ロードマップ作成
-description: やりたいことと要件を書くと、AIがロードマップを自動生成します
+description: やりたいことと要件を書くと、AIがAI活用ロードマップを自動生成します
 title: "[タスク名を入力してください]"
 labels: []
 body:
@@ -16,12 +16,23 @@ body:
     id: requirements
     attributes:
       label: 要件
-      description: 具体的な要件を箇条書きで書いてください（これをもとにロードマップを生成します）
+      description: |
+        「ユーザーが〜できる」の形で、機能の目的を書いてください。
+        実装の詳細（使うライブラリ・DB設計など）は書かなくてOKです。
+        それは「補足・制約条件」欄に書いてください。
+
+        ✅ 適切な粒度の例：
+          - ユーザーがメールアドレスとパスワードで新規登録できる
+          - 登録後に確認メールが届く
+          - ログインに3回失敗したらアカウントをロックする
+
+        ❌ 詳しすぎる例（実装詳細はここに書かない）：
+          - bcrypt cost factor 12でハッシュ化する
+          - Redisにセッションを保存する
       placeholder: |
-        - メールアドレスとパスワードで新規登録できる
-        - 登録後に確認メールを送信する
-        - パスワードはbcryptでハッシュ化して保存する
-        - フロントはReact、バックエンドはNode.js + Express
+        - 〇〇ができる
+        - 〇〇したときに〇〇される
+        - 〇〇の一覧を参照できる
     validations:
       required: true
 
@@ -29,7 +40,11 @@ body:
     id: context
     attributes:
       label: 補足・制約条件
-      description: 期限・チーム体制・技術スタックの制約などがあれば書いてください（任意）
-      placeholder: 例）2週間でリリース予定。3人チーム。既存のopenapi.yamlあり。
+      description: 技術スタック・チーム体制・期限・既存資産などを書いてください（任意）
+      placeholder: |
+        - バックエンドは Node.js + Express
+        - フロントは React（既存コードあり）
+        - openapi.yaml はまだない状態から始める
+        - 2週間でリリース予定、2人チーム
     validations:
       required: false
