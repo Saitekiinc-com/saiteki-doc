@@ -1,0 +1,35 @@
+name: AI活用ロードマップ作成
+description: やりたいことと要件を書くと、AIがロードマップを自動生成します
+title: "[タスク名を入力してください]"
+labels: []
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: やりたいこと
+      description: このissueで達成したいタスクを一言で書いてください
+      placeholder: 例）会員登録APIの実装をAIで効率化したい
+    validations:
+      required: true
+
+  - type: textarea
+    id: requirements
+    attributes:
+      label: 要件
+      description: 具体的な要件を箇条書きで書いてください（これをもとにロードマップを生成します）
+      placeholder: |
+        - メールアドレスとパスワードで新規登録できる
+        - 登録後に確認メールを送信する
+        - パスワードはbcryptでハッシュ化して保存する
+        - フロントはReact、バックエンドはNode.js + Express
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 補足・制約条件
+      description: 期限・チーム体制・技術スタックの制約などがあれば書いてください（任意）
+      placeholder: 例）2週間でリリース予定。3人チーム。既存のopenapi.yamlあり。
+    validations:
+      required: false

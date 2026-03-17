@@ -2,8 +2,8 @@
 """
 GitHub issueが作成されたときに:
 1. Neo4jからナレッジグラフ全体を取得（Graph RAG）
-2. Geminiにissueと関連ページ名のリストを渡し、どれが関連するか特定させる（JSON形式）
-3. 特定されたページのリンク・AI活用内容・プロンプト例をコードで組み立てる
+2. Geminiでissueに関連するナレッジページを特定
+3. 要件をもとにAI活用ロードマップをGeminiで生成
 4. GitHub issueにコメントを投稿する
 """
 
@@ -31,7 +31,6 @@ DOCS_BASE_URL   = "https://saitekiinc-com.github.io/saiteki-doc"
 
 
 def filepath_to_url(filepath: str) -> str:
-    """例: practices/lv1/estimation.md → https://...saiteki-doc/practices/lv1/estimation.html"""
     path = filepath.replace("\\", "/")
     if "practices/" in path:
         path = path[path.index("practices/"):]
@@ -43,7 +42,6 @@ def filepath_to_url(filepath: str) -> str:
 # =============================================
 
 def fetch_knowledge_graph() -> list[dict]:
-    """Neo4jから全ページのナレッジを取得して辞書リストとして返す"""
     query = """
     MATCH (p:MarkdownPage)-[:DEFINES]->(h:HumanTask)
     OPTIONAL MATCH (h)-[:REPLACEABLE_BY|PARTIALLY_BY]->(g:AIGuidance)-[:USES_ROLE]->(r:AIRole)
@@ -97,11 +95,6 @@ def identify_relevant_pages(
     issue_body:  str,
     pages:       list[dict],
 ) -> list[str]:
-    """
-    issueの内容からどのページが関連するかをGeminiに特定させる。
-    response_mime_type="application/json" でJSON出力を強制する。
-    返り値: 関連するpage_titleのリスト（最大3件）
-    """
     client    = genai.Client(api_key=GEMINI_API_KEY)
     page_list = "\n".join([f"- {p['page_title']} (Lv{p['lv']})" for p in pages])
 
@@ -116,8 +109,7 @@ def identify_relevant_pages(
 
 上記のリストから関連するページを最大3件選び、ページ名の配列をJSONで返してください。
 """
-
-    print(f"Geminiに送信するページリスト（{len(pages)}件）")
+    print(f"ナレッジグラフから関連ページを特定中（{len(pages)}件から検索）...")
     response = client.models.generate_content(
         model="gemini-2.0-flash",
         contents=prompt,
@@ -147,53 +139,99 @@ def identify_relevant_pages(
 
 
 # =============================================
-# コメント本文をコードで組み立て
+# 要件セクションをissue本文から抽出
 # =============================================
 
-def build_comment(
+def extract_requirements(body: str) -> str:
+    """
+    issueテンプレートの「要件」セクションを抽出する。
+    テンプレート形式（## 要件）でも、フリーテキストでも対応。
+    """
+    if not body:
+        return ""
+
+    # テンプレート形式: "## 要件" または "### 要件" セクションを探す
+    match = re.search(
+        r'(?:^|\n)#{1,3}\s*要件\s*\n(.*?)(?=\n#{1,3}\s|\Z)',
+        body,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if match:
+        return match.group(1).strip()
+
+    # フォールバック: 全文をそのまま返す
+    return body.strip()
+
+
+# =============================================
+# Gemini: 要件ベースのロードマップを生成
+# =============================================
+
+def generate_roadmap(
     issue_title:     str,
+    issue_body:      str,
     relevant_titles: list[str],
     pages:           list[dict],
 ) -> str:
     """
-    特定されたページのリンク・AIタスク・プロンプト例を使ってコメントを組み立てる
+    要件と関連ナレッジをGeminiに渡してロードマップを生成する。
     """
-    page_map = {p["page_title"]: p for p in pages}
-    level_label = {
-        "full":       "✅ AIが全量担当",
-        "partial":    "⚡ AIが補助・人が最終判断",
-        "human_only": "👤 人が必須",
-    }
-
     if not relevant_titles:
-        return "ナレッジグラフに関連するガイドラインが見つかりませんでした。\n新しいナレッジを追加していきましょう！"
+        return "関連するガイドラインが見つかりませんでした。新しいナレッジを追加していきましょう！"
 
-    lines = []
+    client   = genai.Client(api_key=GEMINI_API_KEY)
+    page_map = {p["page_title"]: p for p in pages}
+
+    # 関連ページの内容をコンテキストとして組み立てる
+    knowledge_context = ""
     for title in relevant_titles:
         page = page_map.get(title)
         if not page:
             continue
-
-        label = level_label.get(page["replaceable"], "")
-        lines.append(f"### [{title}]({page['doc_url']}) {label}")
-
+        knowledge_context += f"\n### {title}\n"
+        knowledge_context += f"ドキュメントURL: {page['doc_url']}\n"
         if page["ai_tasks"]:
-            lines.append("\n**AIにやってもらえること:**")
+            knowledge_context += "AIにできること:\n"
             for t in page["ai_tasks"][:3]:
-                lines.append(f"- {t}")
-
+                knowledge_context += f"  - {t}\n"
         if page["output_example"]:
-            lines.append(f"\n**期待する成果物:** {page['output_example']}")
+            knowledge_context += f"期待する成果物: {page['output_example']}\n"
 
-        if page["prompt_template"]:
-            # プロンプトテンプレートの先頭1〜2行を抜粋
-            snippet = page["prompt_template"].split("\n")[0][:120]
-            lines.append(f"\n**AIへの指示例:**")
-            lines.append(f"> {snippet}")
+    requirements = extract_requirements(issue_body)
 
-        lines.append("")  # 空行
+    prompt = f"""あなたはSaitekiのAI活用アドバイザーです。
+以下の要件と社内ナレッジを参照して、このタスクを進めるためのAI活用ロードマップを作成してください。
 
-    return "\n".join(lines)
+## タスク
+{issue_title}
+
+## 要件
+{requirements[:1000] if requirements else "（未記載）"}
+
+## 利用できる社内ナレッジ
+{knowledge_context}
+
+## ロードマップの作成指示
+
+以下の構成で、Markdownのロードマップを作成してください：
+
+1. **方針（1〜2文）**: この要件に対してAIを使うにあたっての基本方針
+2. **Step 1〜3（順序立てた手順）**: 各ステップで
+   - 何をするか（タスク）
+   - AIに何を任せるか
+   - AIへの指示例（プロンプト1文）
+   - 使える社内ナレッジへのMarkdownリンク
+3. **人が判断・決定する必要があること**: 箇条書き1〜3件
+
+日本語で、全体600字以内でまとめてください。ポジティブで実用的なトーンで書いてください。
+"""
+
+    print("要件ベースのロードマップを生成中...")
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+    )
+    return response.text.strip()
 
 
 # =============================================
@@ -231,21 +269,23 @@ def main():
     print(f"取得完了: {len(pages)}ページ")
 
     # 2. Geminiで関連ページを特定
-    print("Geminiで関連ページを特定中...")
     relevant_titles = identify_relevant_pages(ISSUE_TITLE, ISSUE_BODY, pages)
     print(f"関連ページ: {relevant_titles}")
 
-    # 3. コメント本文をコードで組み立て
-    header  = "## 🤖 AI活用ガイダンス\n\n"
-    header += "_issueの内容をもとに、社内ナレッジグラフから関連するガイドラインを自動で提案しています。_\n\n"
+    # 3. 要件をもとにロードマップを生成
+    roadmap = generate_roadmap(ISSUE_TITLE, ISSUE_BODY, relevant_titles, pages)
 
-    body_text    = build_comment(ISSUE_TITLE, relevant_titles, pages)
-    full_comment = header + body_text
+    # 4. コメント本文を組み立て
+    header  = "## 🤖 AI活用ロードマップ\n\n"
+    header += "_issueの要件をもとに、社内ナレッジグラフからAI活用ロードマップを自動生成しました。_\n\n"
+    header += "---\n\n"
+
+    full_comment = header + roadmap
 
     print("\n=== 生成されたコメント ===")
     print(full_comment)
 
-    # 4. GitHubにコメントを投稿
+    # 5. GitHubにコメントを投稿
     post_github_comment(REPO, ISSUE_NUMBER, full_comment)
 
 
