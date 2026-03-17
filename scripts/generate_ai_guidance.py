@@ -11,7 +11,8 @@ import json
 import os
 import re
 import requests
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # =============================================
 # 環境変数から設定を読み込む
@@ -98,41 +99,50 @@ def identify_relevant_pages(
 ) -> list[str]:
     """
     issueの内容からどのページが関連するかをGeminiに特定させる。
+    response_mime_type="application/json" でJSON出力を強制する。
     返り値: 関連するpage_titleのリスト（最大3件）
     """
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.0-flash")
-
+    client    = genai.Client(api_key=GEMINI_API_KEY)
     page_list = "\n".join([f"- {p['page_title']} (Lv{p['lv']})" for p in pages])
 
-    prompt = f"""
-以下のGitHub issueの内容を読んで、このissueのタスクに最も関連する社内ナレッジを選んでください。
+    prompt = f"""以下のGitHub issueに最も関連する社内ナレッジページを選んでください。
 
 ## GitHub issue
 タイトル: {issue_title}
 本文: {issue_body[:600] if issue_body else "（なし）"}
 
-## 社内ナレッジ一覧（ページ名）
+## 社内ナレッジ一覧
 {page_list}
 
-## 指示
-上記の一覧から、このissueのタスクに関連するページを最大3件選び、
-以下のJSON配列形式のみで返してください。他のテキストは不要です。
-
-例: ["工数見積もりの精緻化", "API仕様の先行確定"]
+上記のリストから関連するページを最大3件選び、ページ名の配列をJSONで返してください。
 """
-    response = model.generate_content(prompt)
-    text = response.text.strip()
 
-    # JSON配列を抽出
-    match = re.search(r'\[.*?\]', text, re.DOTALL)
-    if not match:
-        return []
+    print(f"Geminiに送信するページリスト（{len(pages)}件）")
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+        ),
+    )
+    text = response.text.strip()
+    print(f"Gemini応答: {text[:200]}")
+
     try:
-        titles = json.loads(match.group())
-        return [t for t in titles if isinstance(t, str)][:3]
-    except json.JSONDecodeError:
+        titles = json.loads(text)
+        if isinstance(titles, list):
+            return [t for t in titles if isinstance(t, str)][:3]
         return []
+    except json.JSONDecodeError:
+        # JSON解析が失敗した場合はregexでフォールバック
+        match = re.search(r'\[.*?\]', text, re.DOTALL)
+        if not match:
+            return []
+        try:
+            titles = json.loads(match.group())
+            return [t for t in titles if isinstance(t, str)][:3]
+        except json.JSONDecodeError:
+            return []
 
 
 # =============================================

@@ -20,7 +20,7 @@ jobs:
           python-version: "3.11"
 
       - name: 依存パッケージをインストール
-        run: pip install requests google-generativeai
+        run: pip install requests google-genai
 
       - name: AI活用ガイダンスを生成してコメント
         env:
