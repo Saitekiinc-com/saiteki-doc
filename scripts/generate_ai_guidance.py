@@ -131,16 +131,17 @@ def identify_relevant_pages(
     try:
         titles = json.loads(text)
         if isinstance(titles, list):
-            return [t for t in titles if isinstance(t, str)][:3]
+            cleaned = [re.sub(r'\s*\(Lv\d+\)\s*$', '', t).strip() for t in titles if isinstance(t, str)]
+            return cleaned[:3]
         return []
     except json.JSONDecodeError:
-        # JSON解析が失敗した場合はregexでフォールバック
         match = re.search(r'\[.*?\]', text, re.DOTALL)
         if not match:
             return []
         try:
             titles = json.loads(match.group())
-            return [t for t in titles if isinstance(t, str)][:3]
+            cleaned = [re.sub(r'\s*\(Lv\d+\)\s*$', '', t).strip() for t in titles if isinstance(t, str)]
+            return cleaned[:3]
         except json.JSONDecodeError:
             return []
 
