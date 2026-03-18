@@ -19,9 +19,9 @@ export default withMermaid({
           {
             text: 'Saiteki AI Standard', link: '/saiteki_ai_standard',
             items: [
-              { text: 'Lv.1 Individual (個人支援)', link: '/maturity-model/lv1-individual' },
-              { text: 'Lv.2 Shared (シェア型)', link: '/maturity-model/lv2-shared' },
-              { text: 'Lv.3 Autonomous (自律型)', link: '/maturity-model/lv3-autonomous' }
+              { text: 'Lv.1 個人の作業効率化', link: '/maturity-model/lv1-individual' },
+              { text: 'Lv.2 作業領域の拡大', link: '/maturity-model/lv2-shared' },
+              { text: 'Lv.3 組織能力の拡張', link: '/maturity-model/lv3-autonomous' }
             ]
           }
         ]
