@@ -47,7 +47,7 @@ export default withMermaid({
             ]
           },
           {
-            text: 'Lv.2 合意形成の加速',
+            text: 'Lv.2 作業領域の拡大',
             items: [
               { text: 'HTMLモック早期生成', link: '/practices/lv2/mock_driven' },
               { text: 'API・データモデルの先行生成', link: '/practices/lv2/api_data' },
