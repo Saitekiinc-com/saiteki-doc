@@ -1,0 +1,10 @@
+# 教育目的: 公開ディレクトリに置かれた設定ファイルのデモ
+# 攻撃者がディレクトリリスティングを悪用してこのファイルを発見できる
+
+production:
+  adapter: postgresql
+  host: 10.1.0.20
+  database: rails_app
+  username: rails
+  password: password   # 平文パスワード
+  pool: 5

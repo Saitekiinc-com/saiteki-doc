@@ -1,0 +1,10 @@
+admin
+root
+user
+test
+developer
+backup
+sysadmin
+john.doe
+jane.smith
+ftpuser

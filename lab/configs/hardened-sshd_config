@@ -1,0 +1,26 @@
+# セキュリティ強化済み SSH 設定
+# p-jumpbox-01 の脆弱な設定と比較して学習する
+
+Port 2222                      # デフォルトポートを変更
+PermitRootLogin no             # rootログインを禁止
+PasswordAuthentication no      # パスワード認証を無効化
+PubkeyAuthentication yes       # 鍵認証のみ許可
+
+# 接続制限
+MaxAuthTries 3                 # 認証試行回数を制限
+LoginGraceTime 20              # ログイン猶予時間を短縮
+MaxSessions 4
+
+# 機能制限
+X11Forwarding no               # X11フォワーディングを無効化
+AllowTcpForwarding no          # TCPフォワーディングを無効化 (ピボット防止)
+GatewayPorts no
+AllowAgentForwarding no
+
+# 接続ユーザー制限
+AllowUsers admin developer     # 許可ユーザーを明示
+
+# ログ強化
+LogLevel VERBOSE               # 詳細ログ
+
+UsePAM yes

@@ -1,0 +1,7 @@
+# 教育目的: バックアップディレクトリに残されたユーザーリスト
+# 実際の攻撃でよく見られるミス
+
+admin:admin123
+john.doe:Password1
+jane.smith:Summer2024!
+sysadmin:Qwerty123

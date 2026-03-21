@@ -1,0 +1,173 @@
+version: "3.8"
+
+# ===================================================================
+# サイバーセキュリティ検証環境
+# 本書: Black Hat Bash (O'Reilly Japan) 3章 参考
+#
+# ネットワーク構成:
+#   公開ネットワーク  : 172.16.10.0/24  (インターネット想定)
+#   社内ネットワーク  : 10.1.0.0/24     (内部ネットワーク想定)
+#   攻撃者ネットワーク: 172.16.10.0/24  (Kali はパブリック側に接続)
+#
+# 警告: このラボは教育目的の脆弱な構成を含みます。
+#       インターネットに公開しないでください。
+# ===================================================================
+
+networks:
+  public-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.10.0/24
+  internal-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.1.0.0/24
+
+services:
+
+  # ================================================================
+  # 公開ネットワーク側マシン (172.16.10.0/24)
+  # ================================================================
+
+  # 公開Webサーバー1 (Apache + PHP + DVWA)
+  p-web-01:
+    build:
+      context: ./public-net/p-web-01
+    container_name: p-web-01
+    hostname: p-web-01
+    networks:
+      public-net:
+        ipv4_address: 172.16.10.10
+    ports:
+      - "8080:80"
+    environment:
+      - MYSQL_HOST=10.1.0.20
+      - MYSQL_USER=dvwa
+      - MYSQL_PASSWORD=password
+      - MYSQL_DB=dvwa
+    restart: unless-stopped
+
+  # 公開Webサーバー2 (Nginx + PHP)
+  p-web-02:
+    build:
+      context: ./public-net/p-web-02
+    container_name: p-web-02
+    hostname: p-web-02
+    networks:
+      public-net:
+        ipv4_address: 172.16.10.11
+    ports:
+      - "8081:80"
+    restart: unless-stopped
+
+  # 公開FTPサーバー (vsftpd 匿名ログイン有効)
+  p-ftp-01:
+    build:
+      context: ./public-net/p-ftp-01
+    container_name: p-ftp-01
+    hostname: p-ftp-01
+    networks:
+      public-net:
+        ipv4_address: 172.16.10.21
+    ports:
+      - "21:21"
+      - "21100-21110:21100-21110"
+    restart: unless-stopped
+
+  # ジャンプボックス (公開・内部両NWに接続)
+  p-jumpbox-01:
+    build:
+      context: ./public-net/p-jumpbox-01
+    container_name: p-jumpbox-01
+    hostname: p-jumpbox-01
+    networks:
+      public-net:
+        ipv4_address: 172.16.10.100
+      internal-net:
+        ipv4_address: 10.1.0.100
+    ports:
+      - "2222:22"
+    restart: unless-stopped
+
+  # ================================================================
+  # 社内ネットワーク側マシン (10.1.0.0/24)
+  # ================================================================
+
+  # 内部Railsアプリサーバー
+  c-rails-01:
+    build:
+      context: ./internal-net/c-rails-01
+    container_name: c-rails-01
+    hostname: c-rails-01
+    networks:
+      internal-net:
+        ipv4_address: 10.1.0.10
+    environment:
+      - DATABASE_URL=postgres://rails:password@10.1.0.20/rails_app
+      - SECRET_KEY_BASE=insecure_secret_key_for_lab_only
+    restart: unless-stopped
+
+  # 内部DBサーバー1 (PostgreSQL プライマリ)
+  c-db-01:
+    image: postgres:14
+    container_name: c-db-01
+    hostname: c-db-01
+    networks:
+      internal-net:
+        ipv4_address: 10.1.0.20
+    environment:
+      - POSTGRES_USER=rails
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=rails_app
+    volumes:
+      - ./internal-net/c-db-01/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  # 内部DBサーバー2 (MySQL レプリカ / DVWA用)
+  c-db-02:
+    image: mysql:8.0
+    container_name: c-db-02
+    hostname: c-db-02
+    networks:
+      internal-net:
+        ipv4_address: 10.1.0.21
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_USER=dvwa
+      - MYSQL_PASSWORD=password
+      - MYSQL_DATABASE=dvwa
+    volumes:
+      - ./internal-net/c-db-02/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  # バックアップサーバー (rsync + Samba)
+  c-backup-01:
+    build:
+      context: ./internal-net/c-backup-01
+    container_name: c-backup-01
+    hostname: c-backup-01
+    networks:
+      internal-net:
+        ipv4_address: 10.1.0.30
+    restart: unless-stopped
+
+  # ================================================================
+  # 攻撃者マシン (Kali Linux)
+  # ================================================================
+
+  kali:
+    build:
+      context: ./attacker/kali
+    container_name: kali
+    hostname: kali
+    networks:
+      public-net:
+        ipv4_address: 172.16.10.200
+    stdin_open: true
+    tty: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    restart: unless-stopped
