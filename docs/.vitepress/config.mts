@@ -44,6 +44,8 @@ export default withMermaid({
               { text: '結合テストの効率化', link: '/practices/lv1/integration_test' },
               { text: 'コードレビューの質向上', link: '/practices/lv1/code_review' },
               { text: 'リファクタリングの推進', link: '/practices/lv1/refactoring' },
+              { text: 'UI設計でチームの認識を揃える', link: '/practices/lv1/ui_design_flow' },
+              { text: 'データ設計の整合性をAIで確保する', link: '/practices/lv1/data_design' },
             ]
           },
           {
