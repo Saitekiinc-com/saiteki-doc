@@ -46,6 +46,12 @@ export default withMermaid({
               { text: 'リファクタリングの推進', link: '/practices/lv1/refactoring' },
               { text: 'UI設計でチームの認識を揃える', link: '/practices/lv1/ui_design_flow' },
               { text: 'データ設計の整合性をAIで確保する', link: '/practices/lv1/data_design' },
+              { text: 'フロントエンドの構造分割設計', link: '/practices/lv1/frontend_structure_design' },
+              { text: 'ユーザー操作とフロントロジックの接続設計', link: '/practices/lv1/frontend_interaction_design' },
+              { text: '保守性を担保するコード設計', link: '/practices/lv1/frontend_code_quality_design' },
+              { text: 'DBの物理実装設計', link: '/practices/lv1/db_physical_design' },
+              { text: 'データの信頼性と性能設計', link: '/practices/lv1/data_reliability_design' },
+
             ]
           },
           {
