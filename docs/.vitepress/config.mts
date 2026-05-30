@@ -6,7 +6,10 @@ export default withMermaid({
   title: "Saiteki AI Standardドキュメント",
   description: "AI駆動開発の標準化指針と実践カリキュラム",
   base: "/saiteki-doc/",
-  srcExclude: ['**/slack_ai_guideline_*_design.md'],
+  srcExclude: [
+    '**/slack_ai_guideline_*_design.md',
+    '**/ai_standard_operation_policy_design.md'
+  ],
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     nav: [

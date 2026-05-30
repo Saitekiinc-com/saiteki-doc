@@ -1,0 +1,38 @@
+# Saiteki AI Standard 運用方針追加 設計書
+
+## 目的
+
+Saiteki AI Standardを継続更新するための運用方針を、公開ページの冒頭で参照できるようにする。Notionを検討・編集場所、GitHub Pagesを正式版として扱う前提を明文化し、課題定義、必要データ、データ構造、データフローを更新時の確認観点に含める。
+
+## 対象範囲
+
+- `docs/saiteki_ai_standard.md` に運用方針を追加する。
+- 同階層の設計書を公開対象から除外する。
+- 既存の成熟度モデルや各Lv別ガイドライン本文は変更しない。
+
+## 主要な処理の流れ
+
+1. 既存の「このドキュメントについて」の直後に運用方針を追加する。
+2. Notion、GitHub Pages、ナレッジグラフ・issueコメントの役割を本文で説明する。
+3. 新規ページ追加や古い情報の上書きルールを箇条書きで定義する。
+4. 追加・更新時に見る観点を表形式で整理する。
+5. 設計書を `srcExclude` で公開対象から除外する。
+
+## 変更するファイル
+
+- `docs/saiteki_ai_standard.md`
+- `docs/.vitepress/config.mts`
+- `docs/ai_standard_operation_policy_design.md`
+
+## ブランチ・PR戦略
+
+- ベースブランチ: `main`
+- 作業ブランチ: `codex/ai-standard-operation-policy`
+- PRサイズ目安: 運用方針と設計書更新に限定し、追加差分は100行以内に抑える。
+- 分割基準: 運用方針以外のLv別ガイドライン本文追加や自動反映フローの実装は別PRに分ける。
+- PR作成タイミング: 本文追加、設計書更新、ビルド確認後に作成する。
+
+## 確認方法
+
+- `git diff --check`
+- `npm run docs:build`
