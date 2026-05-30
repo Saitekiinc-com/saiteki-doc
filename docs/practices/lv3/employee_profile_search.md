@@ -89,6 +89,19 @@ Slackで `/saiteki-people` を実行し、自然文で探したい人を入力�
 
 このindexは、本人が実際に話していた内容を探すためのものです。経験者検索では、プロフィール上の自己申告や要約ではなく、具体的な発言が候補発見の入口になります。
 
+主な項目の意味は次の通りです。
+
+| 項目 | 意味 |
+| --- | --- |
+| `person` / `personName` | 発言者に対応する社員。Slack IDと社員プロフィールを突き合わせて決める。 |
+| `relationLabel` | 検索結果で「どの根拠か」を短く示すラベル。メッセージ検索では `Slack発言: チャンネル名` のように入る。 |
+| `topicLabel` | 検索単位の主題。メッセージ検索では投稿されたチャンネル名を入れ、検索語との語彙一致にも使う。 |
+| `detailBullets` | Slack本文の要約または抜粋。検索結果で根拠として見せる材料になる。 |
+| `quotes` | 元メッセージへの参照。チャンネル、投稿時刻、本文などを保持し、Slack Exportページへの確認導線に使う。 |
+| `searchText` | embeddingの入力にする本文。Slack本文、チャンネル名、職種などをまとめ、意味検索の対象にする。 |
+
+役割としては、`searchText` はベクトル検索の入力、`relationLabel` と `topicLabel` は短い検索語の語彙補正、`detailBullets` と `quotes` は根拠表示に使います。検索単位に `topicAliases` がある場合は、別表記や略称として語彙補正に使えます。現行のメッセージ検索indexでは、基本的に `relationLabel` と `topicLabel` が語彙補正の対象です。
+
 `message-search-index.embedded.json` では、各メッセージ検索単位に次のようなembedding情報を追加します。
 
 ```json
@@ -153,7 +166,7 @@ GitHub Actionsでは、Slack同期後にメッセージ検索index、embedding�
 2. Slack署名を検証し、検索文字列を取り出す。
 3. 入力クエリをGemini embeddingの `RETRIEVAL_QUERY` としてベクトル化する。
 4. `message-search-index.embedded.json` の各メッセージ単位とのコサイン類似度を計算する。
-5. ラベルや本文の語彙一致を小さく加点し、候補検索単位を集める。
+5. ラベルや別表記の語彙一致を小さく加点し、候補検索単位を集める。
 6. 検索単位を社員ごとに集約し、上位の根拠とSlack発言を候補に付ける。
 7. Geminiで候補を `direct` / `adjacent` / `weak` / `reject` に再判定する。
 8. `direct` と、設定次第で `adjacent` の候補だけをSlackに返す。
@@ -172,7 +185,7 @@ Slackメッセージ単位のindexを検索します。これにより、プロ�
 
 検索の中心はembeddingベクトルのコサイン類似度です。クエリと検索単位の `searchText` を同じ次元のベクトルにし、意味的に近い単位を探します。
 
-一方で、社員検索では「AWS」「React」「QA」「ポケモン」のような短い固有語が重要になることがあります。そのため、完全な意味検索だけにせず、検索語が `relationLabel`、`topicLabel`、`topicAliases`、Slack本文に含まれる場合は小さく加点します。
+一方で、社員検索では「AWS」「React」「QA」「ポケモン」のような短い固有語が重要になることがあります。そのため、完全な意味検索だけにせず、検索語が `relationLabel` や `topicLabel` に含まれる場合は小さく加点します。検索単位に `topicAliases` がある場合は、別表記や略称も同じ補正対象にできます。
 
 ### 候補をそのまま信じない
 
