@@ -56,7 +56,7 @@ Slack上の発言データを定期的に収集し、Google Geminiを用いて�
 
 - [Slackから行う社員プロファイル検索](./employee_profile_search)
 
-このページでは、Slack検索の利用シーンに加えて、`employees.json`、Slackメッセージログ、プロフィールグラフ、embedding付き検索index、Geminiによる再ランキングまでのデータ構造と検索フローを記載します。
+このページでは、Slack検索の利用シーンに加えて、`employees.json`、Slackメッセージログ、メッセージ検索index、embedding、Geminiによる再ランキングまでのデータ構造と検索フローを記載します。
 
 ## 運用ガイドライン
 

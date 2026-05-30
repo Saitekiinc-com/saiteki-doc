@@ -29,14 +29,10 @@ Slackで `/saiteki-people` を実行し、自然文で探したい人を入力�
 | --- | --- |
 | `data/employees.json` | 社員ごとの基本プロフィール。名前、職種、Slack ID、AIが整理した強み、価値観、最近の状態などを持つ。 |
 | `data/slack-messages.jsonl` | Slack同期で取得した発言ログ。メッセージID、投稿者、チャンネル、本文、時刻などを1行1 JSONで保持する。 |
-| `data/employee-profile-graph.jsonld` | 社員、話題、根拠、Slack発言をJSON-LDのグラフとして表したもの。プロフィール検索indexの元データになる。 |
-| `data/profile-search-index.json` | プロフィールグラフから作る検索単位。社員と話題の関係、根拠、検索用テキストをまとめる。現行のSlack検索では通常使わない。 |
-| `data/profile-search-index.embedded.json` | `profile-search-index.json` の各検索単位にembeddingベクトルを付与したもの。profile fallbackを有効にした場合の候補データ。 |
 | `data/message-search-index.json` | Slackメッセージ本文を検索単位にしたindex。現行のSlack検索で主に使う。 |
 | `data/message-search-index.embedded.json` | `message-search-index.json` の各検索単位にembeddingベクトルを付与したもの。現行のSlack検索ではこちらを検索対象にする。 |
-| `data/search-facets.jsonld` | ベクトル検索が使えない場合の退避用facet index。 |
 
-ポイントは、**プロフィールとして整理済みのデータ** と **Slack上の実発言データ** を分けて持つことです。ただし、現行の `/saiteki-people` ではプロフィール検索は有効化していません。通常はSlackメッセージindexを検索し、プロフィールindexは設定変更時のfallbackや今後の拡張に備えて生成しておきます。
+ポイントは、**社員プロフィールでSlack IDと職種を整理し、検索対象そのものはSlack上の実発言に寄せる** ことです。現行の `/saiteki-people` は、メッセージ検索indexを検索します。
 
 ## データ構造
 
@@ -68,76 +64,6 @@ Slackで `/saiteki-people` を実行し、自然文で探したい人を入力�
 
 ここでは、本人を固定的に評価するためではなく、相談相手探しやオンボーディングの材料にしやすい形で、強み、関心、価値観、最近の話題を分けて持ちます。
 
-### プロフィールグラフ
-
-`employee-profile-graph.jsonld` は、プロフィールを「社員と話題の関係」として扱うためのJSON-LDです。
-
-主なノードは次の通りです。
-
-- `saiteki:Person`: 社員。
-- `saiteki:Topic`: 技術、業務領域、価値観、趣味などの話題。
-- `saiteki:ProfileEdge`: 社員と話題をつなぐ関係。`LIKES`、`HAS_SKILL`、`VALUES` などの述語を持つ。
-- `saiteki:ProfileFact`: その関係を支える根拠。詳細箇条書きや元フィールドを持つ。
-- `saiteki:SlackMessage`: 根拠として参照できるSlack発言。
-
-イメージとしては、次のような関係を作ります。
-
-```json
-{
-  "@type": "saiteki:ProfileEdge",
-  "saiteki:source": "person:社員名",
-  "saiteki:target": "topic:AWS運用",
-  "saiteki:predicate": "HAS_SKILL",
-  "saiteki:category": "work_topic",
-  "saiteki:uiCategory": "仕事・スキル",
-  "saiteki:relationLabel": "AWS運用の経験",
-  "saiteki:detailBullets": ["運用、監視、保守に関する発言がある"],
-  "saiteki:evidenceMessages": ["message:workspace:channel:timestamp"]
-}
-```
-
-### プロフィール検索index
-
-`profile-search-index.json` は、プロフィールグラフの `ProfileEdge` を検索しやすい単位へ変換したものです。1件の検索単位は、おおむね「ある社員が、ある話題にどう関係しているか」を表します。
-
-```json
-{
-  "@type": "saiteki:ProfileSearchUnit",
-  "person": "person:社員名",
-  "personName": "社員名",
-  "slackIds": ["SlackユーザーID"],
-  "topicLabel": "AWS運用",
-  "topicAliases": ["クラウド", "監視", "インフラ"],
-  "semanticType": "technical_skill",
-  "predicate": "HAS_SKILL",
-  "relationLabel": "AWS運用の経験",
-  "detailBullets": ["根拠の要約"],
-  "evidenceMessageIds": ["message:workspace:channel:timestamp"],
-  "quotes": [],
-  "searchText": "embedding生成に使う検索用テキスト"
-}
-```
-
-`searchText` には、関係ラベル、話題名、別名、述語、カテゴリ、根拠の箇条書きなどをまとめます。これにより、「AWS経験者」「クラウド運用を相談できる人」のように表現が違っても近い検索単位を見つけやすくします。
-
-`profile-search-index.embedded.json` では、各検索単位に次のようなembedding情報を追加します。
-
-```json
-{
-  "embedding": {
-    "provider": "gemini",
-    "model": "gemini-embedding-001",
-    "textHash": "searchTextのハッシュ",
-    "dimensions": 768,
-    "vector": [0.01, -0.02]
-  }
-}
-```
-
-`textHash` を持たせることで、検索テキストが変わっていない単位は前回のembeddingを再利用できます。
-
-現状のWorker設定では、`PROFILE_SEARCH_INDEX_URL` は存在しますが、`PEOPLE_FINDER_ENABLE_PROFILE_FALLBACK` が `false` のため、このプロフィール検索indexは検索処理では使っていません。
-
 ### メッセージ検索index
 
 `message-search-index.json` は、Slackメッセージを検索単位にします。現在のSlack検索では、このメッセージindexを使います。
@@ -161,7 +87,23 @@ Slackで `/saiteki-people` を実行し、自然文で探したい人を入力�
 }
 ```
 
-プロフィール検索indexは「整理済みの人物像」を探すための候補データですが、現行運用では使っていません。メッセージ検索indexは「本人が実際に話していたこと」を探すのに向いており、経験者検索では具体的な発言が候補発見の入口になります。
+このindexは、本人が実際に話していた内容を探すためのものです。経験者検索では、プロフィール上の自己申告や要約ではなく、具体的な発言が候補発見の入口になります。
+
+`message-search-index.embedded.json` では、各メッセージ検索単位に次のようなembedding情報を追加します。
+
+```json
+{
+  "embedding": {
+    "provider": "gemini",
+    "model": "gemini-embedding-001",
+    "textHash": "searchTextのハッシュ",
+    "dimensions": 768,
+    "vector": [0.01, -0.02]
+  }
+}
+```
+
+`textHash` を持たせることで、検索テキストが変わっていない単位は前回のembeddingを再利用できます。
 
 ## システムの概要
 
@@ -171,15 +113,13 @@ sequenceDiagram
     participant Slack as Slack
     participant Worker as Cloudflare Worker
     participant MessageIndex as Slackメッセージindex
-    participant ProfileIndex as プロフィールindex（fallback用）
     participant AI as Gemini
 
     User->>Slack: /saiteki-people で検索
     Slack->>Worker: Slash command / modal submit
-    Worker->>AI: 検索意図を整理
+    Worker->>AI: クエリembeddingを生成
     Worker->>MessageIndex: メッセージ単位で候補を検索
-    Worker-->>ProfileIndex: fallback有効時のみ参照
-    Worker->>AI: 候補を direct / adjacent / weak / reject に再判定
+    Worker->>AI: 候補を direct / adjacent / weak / reject に再判定し回答生成
     Worker-->>Slack: 検索者本人に候補を返す
 ```
 
@@ -190,25 +130,20 @@ flowchart TD
     A["Slack発言ログ"] --> B["sync-slack.js"]
     B --> C["employees.json"]
     B --> D["slack-messages.jsonl"]
-    C --> E["employee-profile-graph.jsonld"]
-    D --> F["message-search-index.json"]
-    E --> G["profile-search-index.json"]
-    F --> H["message-search-index.embedded.json"]
-    G --> I["profile-search-index.embedded.json"]
-    H --> J["Cloudflare Worker"]
-    I -. "fallback有効時のみ" .-> J
-    J --> K["/saiteki-people"]
+    C --> E["message-search-index.json"]
+    D --> E
+    E --> F["message-search-index.embedded.json"]
+    F --> G["Cloudflare Worker"]
+    G --> H["/saiteki-people"]
 ```
 
 1. Slackの会話ログを定期同期する。
 2. AIが社員ごとの強み、関心、価値観、現在の状態を `employees.json` に更新する。
-3. 社員、話題、根拠、Slack発言を `employee-profile-graph.jsonld` に変換する。
-4. プロフィールグラフから `profile-search-index.json` を生成する。
-5. Slackメッセージログから `message-search-index.json` を生成する。
-6. Gemini embeddingで `searchText` をベクトル化し、`.embedded.json` を生成する。
-7. Cloudflare WorkerがGitHub raw URLなどからembedding済みメッセージindexを取得し、Slackからの検索に使う。
+3. Slackメッセージログと社員プロフィールのSlack IDを突き合わせ、`message-search-index.json` を生成する。
+4. Gemini embeddingで `searchText` をベクトル化し、`message-search-index.embedded.json` を生成する。
+5. Cloudflare WorkerがGitHub raw URLなどからembedding済みメッセージindexを取得し、Slackからの検索に使う。
 
-GitHub Actionsでは、Slack同期後にプロフィール、ナレッジグラフ、検索facet、プロフィール検索index、メッセージ検索index、embedding付きindex、Slack Exportページを順に生成します。Workerはローカルファイルを読めないため、生成済みindexをURLで取得できる状態にしておきます。ただし、現在の検索対象はメッセージindexであり、プロフィールindexはfallback設定を有効化した場合だけ使います。
+GitHub Actionsでは、Slack同期後にメッセージ検索index、embedding付きindex、Slack Exportページを生成します。Workerはローカルファイルを読めないため、生成済みの `message-search-index.embedded.json` をURLで取得できる状態にしておきます。
 
 ## 検索フロー
 
@@ -216,30 +151,14 @@ GitHub Actionsでは、Slack同期後にプロフィール、ナレッジグラ�
 
 1. Slackのslash commandまたはmodal送信をCloudflare Workerで受ける。
 2. Slack署名を検証し、検索文字列を取り出す。
-3. 必要に応じてGeminiで検索意図を整理する。
-4. 入力クエリをGemini embeddingの `RETRIEVAL_QUERY` としてベクトル化する。
-5. `message-search-index.embedded.json` を優先して、メッセージ単位とのコサイン類似度を計算する。
-6. ラベルや本文の語彙一致を小さく加点し、候補検索単位を集める。
-7. 検索単位を社員ごとに集約し、上位の根拠とSlack発言を候補に付ける。
-8. 現行設定ではプロフィール検索へは進まない。`PEOPLE_FINDER_ENABLE_PROFILE_FALLBACK=true` にした場合のみ、`profile-search-index.embedded.json` も候補収集に使う。
-9. メッセージベクトル検索が未設定の場合は、`search-facets.jsonld` のfacet検索へ退避する。ベクトル検索を試行して0件だった場合は、その0件をそのまま扱う。
-10. Geminiで候補を `direct` / `adjacent` / `weak` / `reject` に再判定する。
-11. `direct` と、設定次第で `adjacent` の候補だけをSlackに返す。
+3. 入力クエリをGemini embeddingの `RETRIEVAL_QUERY` としてベクトル化する。
+4. `message-search-index.embedded.json` の各メッセージ単位とのコサイン類似度を計算する。
+5. ラベルや本文の語彙一致を小さく加点し、候補検索単位を集める。
+6. 検索単位を社員ごとに集約し、上位の根拠とSlack発言を候補に付ける。
+7. Geminiで候補を `direct` / `adjacent` / `weak` / `reject` に再判定する。
+8. `direct` と、設定次第で `adjacent` の候補だけをSlackに返す。
 
-検索前の意図整理では、自然文をそのまま検索するのではなく、次のような検索計画へ変換します。
-
-```json
-{
-  "interpretedQuestion": "ユーザーが本当に知りたいこと",
-  "relationIntent": "has_work_experience",
-  "topicTerms": ["AWS"],
-  "searchQuery": "AWS 運用 監視 構築 設計 保守 実務 経験 現場",
-  "mustHaveEvidence": ["本人の実務経験"],
-  "rejectEvidence": ["勉強会を案内しただけ"]
-}
-```
-
-これにより、「AWS経験者」と「AWSの記事を共有した人」を区別します。特に経験者検索では、勉強会案内、記事共有、関心表明だけを `direct` にしないことが重要です。
+再判定では、「AWS経験者」と「AWSの記事を共有した人」を区別します。特に経験者検索では、勉強会案内、記事共有、関心表明だけを `direct` にしないことが重要です。
 
 ## 検索の考え方
 
@@ -276,8 +195,6 @@ Slack検索を動かすには、Worker側で次の設定を持ちます。
 | 設定 | 役割 |
 | --- | --- |
 | `MESSAGE_SEARCH_INDEX_URL` | embedding済みメッセージindexの取得先。通常検索で最優先する。 |
-| `PROFILE_SEARCH_INDEX_URL` | embedding済みプロフィールindexの取得先。現行設定では参照しないが、profile fallbackを有効化した場合に使う。 |
-| `SEARCH_FACETS_URL` | ベクトル検索が使えない場合の退避用facet indexの取得先。 |
 | `GEMINI_API_KEY` | クエリembedding、再ランキング、回答生成に使う。Worker secretとして扱う。 |
 | `GEMINI_EMBEDDING_MODEL` | 既定では `gemini-embedding-001`。 |
 | `GEMINI_RERANK_MODEL` | 候補の再判定や回答生成に使うモデル。 |
@@ -296,7 +213,7 @@ embedding済みindexを使う場合は、index生成時のモデルとクエリe
 ## 運用上の注意
 
 - AIの分析結果は評価の結論にしない。
-- 検索結果に違和感がある場合は、プロフィールや検索indexを更新する。
+- 検索結果に違和感がある場合は、Slackメッセージ同期や検索indexを更新する。
 - センシティブな内容や本人が広げたくない情報は、検索対象や表示内容から外す。
 - Slackメッセージ由来の根拠は、必要最小限の引用やリンクに留める。
 - 検索できる範囲と対象チャンネルは、運用責任者が定期的に見直す。
