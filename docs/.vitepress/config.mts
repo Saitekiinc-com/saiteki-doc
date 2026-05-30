@@ -6,10 +6,7 @@ export default withMermaid({
   title: "Saiteki AI Standardドキュメント",
   description: "AI駆動開発の標準化指針と実践カリキュラム",
   base: "/saiteki-doc/",
-  srcExclude: [
-    '**/slack_ai_guideline_*_design.md',
-    '**/ai_standard_operation_policy_design.md'
-  ],
+  srcExclude: ['_design/**'],
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     nav: [
@@ -69,7 +66,6 @@ export default withMermaid({
             text: 'Lv.3 組織能力の拡張',
             items: [
               { text: '独自モデルの構築', link: '/practices/lv3/custom_model' },
-              { text: 'オンボーディング計画作成', link: '/practices/lv3/onboarding' },
               {
                 text: '社員情報管理AIの活用',
                 link: '/practices/lv3/employee_management',
