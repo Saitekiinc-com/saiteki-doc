@@ -12,7 +12,7 @@ Lv.3のAI活用ガイドラインを、実際の運用に合わせて更新す�
 - Slackプロファイル検索ページに、用意するデータ、データ構造、index生成、embedding、検索方式、AI再ランキングの説明を追加する。
 - 現行運用ではメッセージindex検索が主で、プロフィールindex検索はfallback設定を有効化した場合のみ使う前提を明記する。
 - Lv.3成熟度モデル内の読書サイクル説明も、Slack前提へ合わせる。
-- 同階層設計書は公開ページとして扱わないよう、VitePressの公開ルートから除外する。
+- 内部設計書は公開ページとして扱わないよう、`docs/_design/` に集約してVitePressの公開ルートから除外する。
 
 ## 主要な処理の流れ
 
@@ -21,7 +21,7 @@ Lv.3のAI活用ガイドラインを、実際の運用に合わせて更新す�
 3. `saiteki-employee-management` のSlack People Finder構成を確認する。
 4. `origin/main` の検索index生成スクリプト、Worker、workflowからデータ構造と検索フローを確認する。
 5. Lv.3配下の本文とサイドバーを更新する。
-6. 同階層設計書を `srcExclude` で除外する。
+6. 内部設計書を `docs/_design/` に置き、`srcExclude` で除外する。
 7. VitePressビルドでリンクとMarkdown構造を確認する。
 
 ## 変更するファイル
@@ -29,11 +29,11 @@ Lv.3のAI活用ガイドラインを、実際の運用に合わせて更新す�
 - `docs/practices/lv3/reading_cycle.md`
 - `docs/practices/lv3/employee_management.md`
 - `docs/practices/lv3/employee_profile_search.md`
-- `docs/practices/lv3/slack_ai_guideline_update_design.md`
+- `docs/_design/slack_ai_guideline_update_design.md`
 - `docs/maturity-model/lv3-autonomous.md`
-- `docs/maturity-model/slack_ai_guideline_lv3_design.md`
+- `docs/_design/slack_ai_guideline_lv3_design.md`
 - `docs/.vitepress/config.mts`
-- `docs/.vitepress/slack_ai_guideline_sidebar_design.md`
+- `docs/_design/slack_ai_guideline_sidebar_design.md`
 
 ## ブランチ・PR戦略
 

@@ -9,7 +9,7 @@ Saiteki AI Standardを継続更新するための運用方針を、公開ペー�
 - `docs/saiteki_ai_standard.md` に運用方針を追加する。
 - 既存の「サイクルのイメージ」セクションを削除し、運用方針に説明を集約する。
 - Lv.1の説明から、特定の実践ページに寄った補足文を削除する。
-- 同階層の設計書を公開対象から除外する。
+- 内部設計書を `docs/_design/` に集約し、公開対象から除外する。
 - 各Lv別ガイドライン本文は変更しない。
 
 ## 主要な処理の流れ
@@ -20,13 +20,13 @@ Saiteki AI Standardを継続更新するための運用方針を、公開ペー�
 4. 追加・更新時に見る観点を表形式で整理する。
 5. 重複する「サイクルのイメージ」セクションを削除する。
 6. Lv.1の説明から、テスト系ガイドラインに限定して見える補足文を削除する。
-7. 設計書を `srcExclude` で公開対象から除外する。
+7. 内部設計書を `docs/_design/` に置き、`srcExclude` で公開対象から除外する。
 
 ## 変更するファイル
 
 - `docs/saiteki_ai_standard.md`
 - `docs/.vitepress/config.mts`
-- `docs/ai_standard_operation_policy_design.md`
+- `docs/_design/ai_standard_operation_policy_design.md`
 
 ## ブランチ・PR戦略
 
